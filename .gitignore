@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyo
+*.pyd
+.Python
+backend/.venv/
+backend/.env
+backend/.pytest_cache/
+backend/.mypy_cache/
+backend/.ruff_cache/
+
+# Node / React
+frontend/node_modules/
+frontend/dist/
+frontend/.env
+frontend/.env.local
+
+# Environment files
+.env
+.env.local
+
+# Docker / local data
+*.log
+
+# VS Code
+.vscode/
+
+# OS files
+.DS_Store
+Thumbs.db
+
+# n8n local data if ever created outside Docker volume
+.n8n/
