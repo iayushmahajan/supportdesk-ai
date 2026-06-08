@@ -12,6 +12,8 @@ class Settings(BaseSettings):
 
     backend_cors_origins: str = "http://localhost:5173"
 
+    enable_demo_seed: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -20,12 +22,6 @@ class Settings(BaseSettings):
 
     @property
     def cors_origins_list(self) -> list[str]:
-        """
-        Converts comma-separated CORS origins into a clean list.
-
-        Example:
-        BACKEND_CORS_ORIGINS=http://localhost:5173,https://your-app.vercel.app
-        """
         return [
             origin.strip()
             for origin in self.backend_cors_origins.split(",")

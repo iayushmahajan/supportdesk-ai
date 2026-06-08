@@ -1,7 +1,7 @@
 from collections.abc import Generator
 
 from sqlalchemy import text
-from sqlmodel import Session, create_engine
+from sqlmodel import SQLModel, Session, create_engine
 
 from app.core.config import get_settings
 
@@ -17,10 +17,30 @@ engine = create_engine(
 def get_session() -> Generator[Session, None, None]:
     """
     FastAPI dependency for database sessions.
-    Later phases will use this for CRUD operations.
     """
     with Session(engine) as session:
         yield session
+
+
+def create_db_and_tables() -> None:
+    """
+    Creates database tables for local development.
+
+    For this portfolio project, this keeps Phase 2 simple.
+    Later, Alembic can be added if needed.
+    """
+    # Import models before create_all so SQLModel knows them.
+    from app.models.ticket import (  # noqa: F401
+        AgentRun,
+        AutomationEvent,
+        GeneratedResponse,
+        Ticket,
+        TicketAttachment,
+        TicketMessage,
+    )
+    from app.models.user import User  # noqa: F401
+
+    SQLModel.metadata.create_all(engine)
 
 
 def check_database_connection() -> bool:
