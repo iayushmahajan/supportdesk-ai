@@ -1,4 +1,4 @@
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 
 import { processTicketWithAi, updateTicketStatus } from "@/api/tickets";
 import { Button } from "@/components/ui/button";
@@ -51,11 +51,14 @@ export function TicketDetail({
   onBack,
   onStatusUpdated,
 }: TicketDetailProps) {
+  const aiResultRef = useRef<HTMLDivElement | null>(null);
+
   const [selectedStatus, setSelectedStatus] = useState<TicketStatus>(
     ticket.status
   );
   const [isUpdating, setIsUpdating] = useState(false);
   const [isProcessingAi, setIsProcessingAi] = useState(false);
+  const [shouldScrollToAiResult, setShouldScrollToAiResult] = useState(false);
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
@@ -74,6 +77,36 @@ export function TicketDetail({
   }, [ticket.generated_responses]);
 
   const missingInformation = getMissingInformation(latestAgentRun);
+
+  const hasAiResult = Boolean(
+    ticket.internal_summary ||
+      ticket.suggested_department ||
+      ticket.category !== "unclassified" ||
+      ticket.priority !== "unassigned" ||
+      ticket.agent_runs.length > 0 ||
+      ticket.generated_responses.length > 0
+  );
+
+  useEffect(() => {
+    setSelectedStatus(ticket.status);
+  }, [ticket.status]);
+
+  useEffect(() => {
+    if (!shouldScrollToAiResult || !hasAiResult) {
+      return;
+    }
+
+    const timeoutId = window.setTimeout(() => {
+      aiResultRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "start",
+      });
+
+      setShouldScrollToAiResult(false);
+    }, 150);
+
+    return () => window.clearTimeout(timeoutId);
+  }, [shouldScrollToAiResult, hasAiResult, ticket.updated_at]);
 
   async function handleStatusUpdate() {
     try {
@@ -94,12 +127,17 @@ export function TicketDetail({
   }
 
   async function handleAiProcessing() {
+    if (hasAiResult) {
+      return;
+    }
+
     try {
       setIsProcessingAi(true);
       setAiError(null);
 
       await processTicketWithAi(ticket.id);
 
+      setShouldScrollToAiResult(true);
       onStatusUpdated();
     } catch (error) {
       console.error(error);
@@ -175,15 +213,27 @@ export function TicketDetail({
             <div className="rounded-lg border bg-muted/40 p-4">
               <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
                 <div>
-                  <p className="font-medium">Run ticket triage workflow</p>
+                  <p className="font-medium">
+                    {hasAiResult
+                      ? "AI triage already completed"
+                      : "Run ticket triage workflow"}
+                  </p>
                   <p className="text-sm text-muted-foreground">
-                    Classifies category, detects priority, suggests routing,
-                    extracts missing information, and drafts a response.
+                    {hasAiResult
+                      ? "This ticket already has AI-generated triage results. A controlled re-run option will be added with the multi-agent workflow."
+                      : "Classifies category, detects priority, suggests routing, extracts missing information, and drafts a response."}
                   </p>
                 </div>
 
-                <Button onClick={handleAiProcessing} disabled={isProcessingAi}>
-                  {isProcessingAi ? "Processing..." : "Process with AI"}
+                <Button
+                  onClick={handleAiProcessing}
+                  disabled={isProcessingAi || hasAiResult}
+                >
+                  {isProcessingAi
+                    ? "Processing..."
+                    : hasAiResult
+                      ? "AI Processed"
+                      : "Process with AI"}
                 </Button>
               </div>
             </div>
@@ -224,7 +274,7 @@ export function TicketDetail({
         </CardContent>
       </Card>
 
-      <section className="grid gap-6 lg:grid-cols-2">
+      <section ref={aiResultRef} className="grid scroll-mt-6 gap-6 lg:grid-cols-2">
         <Card>
           <CardHeader>
             <CardTitle>AI triage result</CardTitle>
