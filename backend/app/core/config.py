@@ -9,6 +9,7 @@ class Settings(BaseSettings):
     api_v1_prefix: str = "/api/v1"
 
     database_url: str
+    test_database_url: str | None = None
 
     backend_cors_origins: str = "http://localhost:5173"
 
