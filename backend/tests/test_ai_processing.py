@@ -1,9 +1,6 @@
 from fastapi.testclient import TestClient
-import pytest
 
 from app.main import app
-from app.models.ticket import TicketCategory, TicketPriority
-from app.schemas.ai import TicketAIResult
 
 client = TestClient(app)
 
@@ -18,92 +15,7 @@ def valid_ticket_payload() -> dict[str, str]:
     }
 
 
-@pytest.fixture
-def mock_technical_ai_result(monkeypatch):
-    """
-    Mock AI processing so tests do not call the real LLM.
-
-    This keeps tests deterministic, fast, and free.
-    """
-
-    def fake_generate_ticket_ai_result(ticket):
-        return TicketAIResult(
-            category=TicketCategory.TECHNICAL,
-            priority=TicketPriority.MEDIUM,
-            suggested_department="IT Support",
-            extracted_entities={
-                "requester_name": ticket.requester_name,
-                "requester_email": ticket.requester_email,
-                "subject": ticket.subject,
-                "source": ticket.source.value,
-            },
-            missing_information=[
-                "Browser and device information",
-                "Screenshot of the error or loading state",
-                "Approximate time when the issue started",
-            ],
-            internal_summary=(
-                f"{ticket.requester_name} reported: {ticket.subject}. "
-                "The request appears to be a technical issue and should be handled by IT Support."
-            ),
-            response_draft=(
-                f"Hello {ticket.requester_name},\n\n"
-                f"Thank you for contacting support. We received your request about "
-                f"\"{ticket.subject}\" and have routed it to IT Support.\n\n"
-                "Best regards,\n"
-                "SupportDesk AI Team"
-            ),
-        )
-
-    monkeypatch.setattr(
-        "app.services.ticket_ai_service.generate_ticket_ai_result",
-        fake_generate_ticket_ai_result,
-    )
-
-
-@pytest.fixture
-def mock_billing_ai_result(monkeypatch):
-    """
-    Mock billing AI output for deterministic billing route test.
-    """
-
-    def fake_generate_ticket_ai_result(ticket):
-        return TicketAIResult(
-            category=TicketCategory.BILLING,
-            priority=TicketPriority.MEDIUM,
-            suggested_department="Billing Support",
-            extracted_entities={
-                "requester_name": ticket.requester_name,
-                "requester_email": ticket.requester_email,
-                "subject": ticket.subject,
-                "source": ticket.source.value,
-            },
-            missing_information=[
-                "Invoice number",
-                "Billing period",
-                "Expected amount or discount information",
-            ],
-            internal_summary=(
-                f"{ticket.requester_name} reported a billing issue about: {ticket.subject}."
-            ),
-            response_draft=(
-                f"Hello {ticket.requester_name},\n\n"
-                "Thank you for contacting support. We received your invoice-related request "
-                "and routed it to Billing Support.\n\n"
-                "Best regards,\n"
-                "SupportDesk AI Team"
-            ),
-        )
-
-    monkeypatch.setattr(
-        "app.services.ticket_ai_service.generate_ticket_ai_result",
-        fake_generate_ticket_ai_result,
-    )
-
-
-def test_process_ai_updates_ticket_with_mocked_ai_result(
-    mock_technical_ai_result,
-) -> None:
+def test_process_ai_updates_ticket_with_multi_agent_result() -> None:
     create_response = client.post("/api/v1/tickets", json=valid_ticket_payload())
 
     assert create_response.status_code == 201
@@ -122,15 +34,25 @@ def test_process_ai_updates_ticket_with_mocked_ai_result(
     assert data["suggested_department"] == "IT Support"
     assert data["internal_summary"] is not None
 
-    assert len(data["agent_runs"]) == 1
-    assert data["agent_runs"][0]["agent_name"] == "Phase 4 Combined Ticket Processor"
-    assert data["agent_runs"][0]["status"] == "completed"
-    assert data["agent_runs"][0]["output_json"]["category"] == "technical"
-    assert data["agent_runs"][0]["output_json"]["missing_information"] == [
-        "Browser and device information",
-        "Screenshot of the error or loading state",
-        "Approximate time when the issue started",
+    assert len(data["agent_runs"]) == 7
+
+    agent_names = [agent_run["agent_name"] for agent_run in data["agent_runs"]]
+
+    assert agent_names == [
+        "Intake Agent",
+        "Classification Agent",
+        "Priority Agent",
+        "Routing Agent",
+        "Missing Information Agent",
+        "Summary Agent",
+        "Response Draft Agent",
     ]
+
+    for agent_run in data["agent_runs"]:
+        assert agent_run["status"] == "completed"
+        assert agent_run["started_at"] is not None
+        assert agent_run["completed_at"] is not None
+        assert agent_run["output_json"] is not None
 
     assert len(data["generated_responses"]) == 1
     assert "Hello AI Test User" in data["generated_responses"][0]["response_text"]
@@ -145,9 +67,7 @@ def test_process_ai_returns_404_for_unknown_ticket() -> None:
     assert response.json()["detail"] == "Ticket not found"
 
 
-def test_process_ai_for_billing_ticket_sets_billing_category(
-    mock_billing_ai_result,
-) -> None:
+def test_process_ai_for_billing_ticket_sets_billing_category() -> None:
     payload = {
         "requester_name": "Billing User",
         "requester_email": "billing.user@example.com",
@@ -172,10 +92,22 @@ def test_process_ai_for_billing_ticket_sets_billing_category(
     assert data["priority"] == "medium"
     assert data["suggested_department"] == "Billing Support"
 
-    assert len(data["agent_runs"]) == 1
-    assert data["agent_runs"][0]["status"] == "completed"
-    assert data["agent_runs"][0]["output_json"]["category"] == "billing"
-
+    assert len(data["agent_runs"]) == 7
     assert len(data["generated_responses"]) == 1
     assert data["generated_responses"][0]["is_approved"] is False
     assert "Billing Support" in data["generated_responses"][0]["response_text"]
+
+
+def test_process_ai_rejects_duplicate_processing() -> None:
+    create_response = client.post("/api/v1/tickets", json=valid_ticket_payload())
+
+    assert create_response.status_code == 201
+
+    ticket_id = create_response.json()["id"]
+
+    first_response = client.post(f"/api/v1/tickets/{ticket_id}/process-ai")
+    second_response = client.post(f"/api/v1/tickets/{ticket_id}/process-ai")
+
+    assert first_response.status_code == 200
+    assert second_response.status_code == 409
+    assert second_response.json()["detail"] == "Ticket has already been processed by AI"

@@ -1,6 +1,6 @@
 import uuid
 
-from fastapi import APIRouter, Depends, status
+from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.core.database import get_session
@@ -14,6 +14,17 @@ from app.services.ticket_service import (
 )
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
+
+
+def _ticket_has_ai_result(ticket) -> bool:
+    return bool(
+        ticket.internal_summary
+        or ticket.suggested_department
+        or ticket.agent_runs
+        or ticket.generated_responses
+        or ticket.category != "unclassified"
+        or ticket.priority != "unassigned"
+    )
 
 
 @router.post(
@@ -62,6 +73,13 @@ def process_ticket_ai_endpoint(
     session: Session = Depends(get_session),
 ):
     ticket = get_ticket_or_404(session=session, ticket_id=ticket_id)
+
+    if _ticket_has_ai_result(ticket):
+        raise HTTPException(
+            status_code=status.HTTP_409_CONFLICT,
+            detail="Ticket has already been processed by AI",
+        )
+
     process_ticket_with_ai(session=session, ticket=ticket)
 
     return get_ticket_or_404(session=session, ticket_id=ticket_id)

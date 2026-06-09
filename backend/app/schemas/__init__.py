@@ -1,3 +1,13 @@
+from app.schemas.agent import (
+    ClassificationAgentOutput,
+    IntakeAgentOutput,
+    MissingInfoAgentOutput,
+    MultiAgentWorkflowResult,
+    PriorityAgentOutput,
+    ResponseDraftAgentOutput,
+    RoutingAgentOutput,
+    SummaryAgentOutput,
+)
 from app.schemas.ai import TicketAIProcessingResponse, TicketAIResult
 from app.schemas.ticket import (
     AgentRunRead,
@@ -14,7 +24,15 @@ from app.schemas.ticket import (
 __all__ = [
     "AgentRunRead",
     "AutomationEventRead",
+    "ClassificationAgentOutput",
     "GeneratedResponseRead",
+    "IntakeAgentOutput",
+    "MissingInfoAgentOutput",
+    "MultiAgentWorkflowResult",
+    "PriorityAgentOutput",
+    "ResponseDraftAgentOutput",
+    "RoutingAgentOutput",
+    "SummaryAgentOutput",
     "TicketAIProcessingResponse",
     "TicketAIResult",
     "TicketAttachmentRead",

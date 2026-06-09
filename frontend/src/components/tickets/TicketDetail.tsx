@@ -34,8 +34,16 @@ const statusOptions: TicketStatus[] = [
   "closed",
 ];
 
-function getMissingInformation(agentRun: AgentRun | undefined): string[] {
-  const missingInformation = agentRun?.output_json?.missing_information;
+function getMissingInformationFromAgentRuns(agentRuns: AgentRun[]): string[] {
+  const missingInfoAgentRun =
+    agentRuns.find(
+      (agentRun) => agentRun.agent_name === "Missing Information Agent"
+    ) ??
+    agentRuns.find((agentRun) =>
+      Array.isArray(agentRun.output_json?.missing_information)
+    );
+
+  const missingInformation = missingInfoAgentRun?.output_json?.missing_information;
 
   if (!Array.isArray(missingInformation)) {
     return [];
@@ -62,12 +70,12 @@ export function TicketDetail({
   const [updateError, setUpdateError] = useState<string | null>(null);
   const [aiError, setAiError] = useState<string | null>(null);
 
-  const latestAgentRun = useMemo(() => {
+  const sortedAgentRuns = useMemo(() => {
     return [...ticket.agent_runs].sort(
-      (a, b) =>
-        new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
-    )[0];
+      (a, b) => a.execution_order - b.execution_order
+    );
   }, [ticket.agent_runs]);
+
 
   const latestGeneratedResponse = useMemo(() => {
     return [...ticket.generated_responses].sort(
@@ -76,7 +84,7 @@ export function TicketDetail({
     )[0];
   }, [ticket.generated_responses]);
 
-  const missingInformation = getMissingInformation(latestAgentRun);
+  const missingInformation = getMissingInformationFromAgentRuns(ticket.agent_runs);
 
   const hasAiResult = Boolean(
     ticket.internal_summary ||
@@ -220,7 +228,7 @@ export function TicketDetail({
                   </p>
                   <p className="text-sm text-muted-foreground">
                     {hasAiResult
-                      ? "This ticket already has AI-generated triage results. A controlled re-run option will be added with the multi-agent workflow."
+                      ? "This ticket already has AI-generated triage results. A controlled re-run option can be added later."
                       : "Classifies category, detects priority, suggests routing, extracts missing information, and drafts a response."}
                   </p>
                 </div>
@@ -274,7 +282,10 @@ export function TicketDetail({
         </CardContent>
       </Card>
 
-      <section ref={aiResultRef} className="grid scroll-mt-6 gap-6 lg:grid-cols-2">
+      <section
+        ref={aiResultRef}
+        className="grid scroll-mt-6 gap-6 lg:grid-cols-2"
+      >
         <Card>
           <CardHeader>
             <CardTitle>AI triage result</CardTitle>
@@ -319,27 +330,35 @@ export function TicketDetail({
 
         <Card>
           <CardHeader>
-            <CardTitle>Execution log</CardTitle>
+            <CardTitle>Agent execution timeline</CardTitle>
             <CardDescription>
-              Phase 4 stores one combined AI workflow run. Phase 5 will split
-              this into multiple agents.
+              Each AI workflow step is stored as a separate agent run.
             </CardDescription>
           </CardHeader>
 
           <CardContent className="space-y-4">
-            {ticket.agent_runs.length === 0 ? (
+            {sortedAgentRuns.length === 0 ? (
               <p className="text-sm text-muted-foreground">
                 No AI execution logs yet.
               </p>
             ) : (
-              ticket.agent_runs.map((agentRun) => (
-                <div key={agentRun.id} className="rounded-lg border p-4">
+              sortedAgentRuns.map((agentRun) => (
+                <div key={agentRun.id} className="relative rounded-lg border p-4">
                   <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div>
-                      <p className="font-medium">{agentRun.agent_name}</p>
-                      <p className="text-sm text-muted-foreground">
-                        Execution order: {agentRun.execution_order}
-                      </p>
+                    <div className="flex items-start gap-3">
+                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-semibold">
+                        {agentRun.execution_order}
+                      </div>
+
+                      <div>
+                        <p className="font-medium">{agentRun.agent_name}</p>
+                        <p className="text-sm text-muted-foreground">
+                          {agentRun.output_json &&
+                          typeof agentRun.output_json.reasoning === "string"
+                            ? agentRun.output_json.reasoning
+                            : "Agent completed its workflow step."}
+                        </p>
+                      </div>
                     </div>
 
                     <span className="rounded-full border px-3 py-1 text-xs font-medium">
@@ -361,6 +380,18 @@ export function TicketDetail({
                         : "Not completed"}
                     </p>
                   </div>
+
+                  {agentRun.output_json ? (
+                    <details className="mt-3">
+                      <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+                        View agent output
+                      </summary>
+
+                      <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs">
+                        {JSON.stringify(agentRun.output_json, null, 2)}
+                      </pre>
+                    </details>
+                  ) : null}
 
                   {agentRun.error_message ? (
                     <p className="mt-3 text-sm text-destructive">

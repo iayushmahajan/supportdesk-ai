@@ -21,6 +21,8 @@ TEST_DATABASE_URL = os.getenv(
 
 os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["ENABLE_DEMO_SEED"] = "false"
+os.environ["LLM_API_KEY"] = ""
+os.environ["ENABLE_LLM_FALLBACK"] = "true"
 
 
 def ensure_test_database_exists() -> None:
