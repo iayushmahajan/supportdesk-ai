@@ -22,6 +22,11 @@ class Settings(BaseSettings):
     llm_timeout_seconds: int = 30
     enable_llm_fallback: bool = True
 
+    # n8n automation settings
+    n8n_webhook_ticket_created_url: str | None = None
+    n8n_webhook_ai_completed_url: str | None = None
+    enable_n8n_automation: bool = False
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -39,6 +44,20 @@ class Settings(BaseSettings):
     @property
     def has_llm_api_key(self) -> bool:
         return bool(self.llm_api_key and self.llm_api_key.strip())
+
+    @property
+    def has_ticket_created_webhook(self) -> bool:
+        return bool(
+            self.n8n_webhook_ticket_created_url
+            and self.n8n_webhook_ticket_created_url.strip()
+        )
+
+    @property
+    def has_ai_completed_webhook(self) -> bool:
+        return bool(
+            self.n8n_webhook_ai_completed_url
+            and self.n8n_webhook_ai_completed_url.strip()
+        )
 
 
 @lru_cache

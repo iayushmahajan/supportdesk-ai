@@ -9,9 +9,15 @@ from app.schemas.agent import (
     SummaryAgentOutput,
 )
 from app.schemas.ai import TicketAIProcessingResponse, TicketAIResult
+from app.schemas.automation import (
+    AutomationCallbackRequest,
+    AutomationEventCreate,
+    AutomationWebhookTestRequest,
+)
 from app.schemas.ticket import (
     AgentRunRead,
     AutomationEventRead,
+    EmailTicketCreate,
     GeneratedResponseRead,
     TicketAttachmentRead,
     TicketCreate,
@@ -23,8 +29,12 @@ from app.schemas.ticket import (
 
 __all__ = [
     "AgentRunRead",
+    "AutomationCallbackRequest",
+    "AutomationEventCreate",
     "AutomationEventRead",
+    "AutomationWebhookTestRequest",
     "ClassificationAgentOutput",
+    "EmailTicketCreate",
     "GeneratedResponseRead",
     "IntakeAgentOutput",
     "MissingInfoAgentOutput",

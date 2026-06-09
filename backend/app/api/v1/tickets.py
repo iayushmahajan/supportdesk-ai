@@ -4,7 +4,18 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
 from app.core.database import get_session
-from app.schemas.ticket import TicketCreate, TicketDetailRead, TicketRead, TicketStatusUpdate
+from app.models.ticket import TicketSource
+from app.schemas.ticket import (
+    EmailTicketCreate,
+    TicketCreate,
+    TicketDetailRead,
+    TicketRead,
+    TicketStatusUpdate,
+)
+from app.services.automation_service import (
+    trigger_ai_completed_automation,
+    trigger_ticket_created_automation,
+)
 from app.services.ticket_ai_service import process_ticket_with_ai
 from app.services.ticket_service import (
     change_ticket_status,
@@ -36,7 +47,33 @@ def create_ticket_endpoint(
     ticket_data: TicketCreate,
     session: Session = Depends(get_session),
 ):
-    return create_new_ticket(session=session, ticket_data=ticket_data)
+    ticket = create_new_ticket(session=session, ticket_data=ticket_data)
+    trigger_ticket_created_automation(session=session, ticket=ticket)
+
+    return ticket
+
+
+@router.post(
+    "/email-intake",
+    response_model=TicketDetailRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_ticket_from_email_endpoint(
+    email_data: EmailTicketCreate,
+    session: Session = Depends(get_session),
+):
+    ticket_data = TicketCreate(
+        requester_name=email_data.from_name,
+        requester_email=email_data.from_email,
+        subject=email_data.email_subject,
+        description=email_data.email_body,
+        source=TicketSource.EMAIL,
+    )
+
+    ticket = create_new_ticket(session=session, ticket_data=ticket_data)
+    trigger_ticket_created_automation(session=session, ticket=ticket)
+
+    return get_ticket_or_404(session=session, ticket_id=ticket.id)
 
 
 @router.get("", response_model=list[TicketRead])
@@ -80,6 +117,7 @@ def process_ticket_ai_endpoint(
             detail="Ticket has already been processed by AI",
         )
 
-    process_ticket_with_ai(session=session, ticket=ticket)
+    processed_ticket = process_ticket_with_ai(session=session, ticket=ticket)
+    trigger_ai_completed_automation(session=session, ticket=processed_ticket)
 
     return get_ticket_or_404(session=session, ticket_id=ticket_id)

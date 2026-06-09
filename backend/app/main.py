@@ -5,6 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from sqlmodel import Session
 
+from app.api.v1.automation import router as automation_router
 from app.api.v1.health import router as health_router
 from app.api.v1.tickets import router as tickets_router
 from app.core.config import get_settings
@@ -35,7 +36,7 @@ async def lifespan(app: FastAPI):
 
 app = FastAPI(
     title=settings.app_name,
-    version="0.2.0",
+    version="0.6.0",
     description="AI-powered support ticket triage and workflow automation platform.",
     lifespan=lifespan,
 )
@@ -50,6 +51,7 @@ app.add_middleware(
 
 app.include_router(health_router, prefix=settings.api_v1_prefix)
 app.include_router(tickets_router, prefix=settings.api_v1_prefix)
+app.include_router(automation_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/")
@@ -59,4 +61,5 @@ def root() -> dict[str, str]:
         "docs": "/docs",
         "health": f"{settings.api_v1_prefix}/health",
         "tickets": f"{settings.api_v1_prefix}/tickets",
+        "automation": f"{settings.api_v1_prefix}/automation/webhook-test",
     }

@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useRef, useState } from "react";
-
+import { AutomationEventsCard } from "@/components/tickets/AutomationEventsCard";
 import { processTicketWithAi, updateTicketStatus } from "@/api/tickets";
 import { Button } from "@/components/ui/button";
 import {
@@ -404,6 +404,8 @@ export function TicketDetail({
           </CardContent>
         </Card>
       </section>
+   
+      <AutomationEventsCard automationEvents={ticket.automation_events} />
 
       <Card>
         <CardHeader>

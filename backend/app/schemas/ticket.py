@@ -23,6 +23,13 @@ class TicketCreate(BaseModel):
     source: TicketSource = TicketSource.FORM
 
 
+class EmailTicketCreate(BaseModel):
+    from_name: str = Field(min_length=1, max_length=120)
+    from_email: EmailStr
+    email_subject: str = Field(min_length=1, max_length=255)
+    email_body: str = Field(min_length=1)
+
+
 class TicketStatusUpdate(BaseModel):
     status: TicketStatus
 

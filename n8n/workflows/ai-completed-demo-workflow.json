@@ -1,0 +1,12 @@
+{
+  "name": "SupportDesk AI - AI Completed Demo",
+  "description": "Demo workflow placeholder. In n8n, create a Webhook trigger that receives ai_completed payloads, then add priority-based notification logic.",
+  "nodes": [],
+  "connections": {},
+  "notes": [
+    "Webhook receives ai_completed payload from FastAPI.",
+    "IF node can branch based on priority.",
+    "Notification/logging node can simulate support team alert.",
+    "Optional HTTP Request can call /api/v1/automation/callback."
+  ]
+}

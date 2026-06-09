@@ -2,18 +2,19 @@ import { useState } from "react";
 
 import { AppShell } from "@/components/layout/AppShell";
 import { AdminDashboardPage } from "@/pages/AdminDashboardPage";
+import { EmailIntakePage } from "@/pages/EmailIntakePage";
 import { TicketDetailPage } from "@/pages/TicketDetailPage";
 import { TicketSubmissionPage } from "@/pages/TicketSubmissionPage";
-import type { Ticket } from "@/types/ticket";
+import type { Ticket, TicketDetail } from "@/types/ticket";
 
-type AppView = "submit" | "dashboard" | "detail";
+type AppView = "submit" | "email" | "dashboard" | "detail";
 
 function App() {
   const [currentView, setCurrentView] = useState<AppView>("dashboard");
   const [selectedTicketId, setSelectedTicketId] = useState<string | null>(null);
   const [dashboardRefreshKey, setDashboardRefreshKey] = useState(0);
 
-  function handleTicketCreated(ticket: Ticket) {
+  function handleTicketCreated(ticket: Ticket | TicketDetail) {
     setSelectedTicketId(ticket.id);
     setDashboardRefreshKey((current) => current + 1);
     setCurrentView("detail");
@@ -28,6 +29,10 @@ function App() {
     setCurrentView("submit");
   }
 
+  function handleNavigateToEmail() {
+    setCurrentView("email");
+  }
+
   function handleNavigateToDashboard() {
     setSelectedTicketId(null);
     setDashboardRefreshKey((current) => current + 1);
@@ -38,10 +43,15 @@ function App() {
     <AppShell
       currentView={currentView}
       onNavigateToSubmit={handleNavigateToSubmit}
+      onNavigateToEmail={handleNavigateToEmail}
       onNavigateToDashboard={handleNavigateToDashboard}
     >
       {currentView === "submit" ? (
         <TicketSubmissionPage onTicketCreated={handleTicketCreated} />
+      ) : null}
+
+      {currentView === "email" ? (
+        <EmailIntakePage onTicketCreated={handleTicketCreated} />
       ) : null}
 
       {currentView === "dashboard" ? (

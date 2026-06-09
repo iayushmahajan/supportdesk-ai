@@ -1,5 +1,6 @@
 import { apiClient } from "@/api/client";
 import type {
+  EmailTicketCreatePayload,
   Ticket,
   TicketCreatePayload,
   TicketDetail,
@@ -10,6 +11,16 @@ export async function createTicket(
   payload: TicketCreatePayload
 ): Promise<Ticket> {
   const response = await apiClient.post<Ticket>("/tickets", payload);
+  return response.data;
+}
+
+export async function createTicketFromEmail(
+  payload: EmailTicketCreatePayload
+): Promise<TicketDetail> {
+  const response = await apiClient.post<TicketDetail>(
+    "/tickets/email-intake",
+    payload
+  );
   return response.data;
 }
 
