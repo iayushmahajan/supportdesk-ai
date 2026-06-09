@@ -1,3 +1,4 @@
+from app.schemas.ai import TicketAIProcessingResponse, TicketAIResult
 from app.schemas.ticket import (
     AgentRunRead,
     AutomationEventRead,
@@ -14,6 +15,8 @@ __all__ = [
     "AgentRunRead",
     "AutomationEventRead",
     "GeneratedResponseRead",
+    "TicketAIProcessingResponse",
+    "TicketAIResult",
     "TicketAttachmentRead",
     "TicketCreate",
     "TicketDetailRead",

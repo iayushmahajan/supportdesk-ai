@@ -14,6 +14,13 @@ class Settings(BaseSettings):
 
     enable_demo_seed: bool = True
 
+    # LLM settings
+    llm_api_key: str | None = None
+    llm_base_url: str = "https://api.openai.com/v1"
+    llm_model: str = "gpt-4.1-mini"
+    llm_timeout_seconds: int = 30
+    enable_llm_fallback: bool = True
+
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
@@ -27,6 +34,10 @@ class Settings(BaseSettings):
             for origin in self.backend_cors_origins.split(",")
             if origin.strip()
         ]
+
+    @property
+    def has_llm_api_key(self) -> bool:
+        return bool(self.llm_api_key and self.llm_api_key.strip())
 
 
 @lru_cache

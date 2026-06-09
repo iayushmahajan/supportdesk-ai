@@ -5,6 +5,7 @@ from sqlmodel import Session
 
 from app.core.database import get_session
 from app.schemas.ticket import TicketCreate, TicketDetailRead, TicketRead, TicketStatusUpdate
+from app.services.ticket_ai_service import process_ticket_with_ai
 from app.services.ticket_service import (
     change_ticket_status,
     create_new_ticket,
@@ -53,3 +54,14 @@ def update_ticket_status_endpoint(
         ticket_id=ticket_id,
         status_data=status_data,
     )
+
+
+@router.post("/{ticket_id}/process-ai", response_model=TicketDetailRead)
+def process_ticket_ai_endpoint(
+    ticket_id: uuid.UUID,
+    session: Session = Depends(get_session),
+):
+    ticket = get_ticket_or_404(session=session, ticket_id=ticket_id)
+    process_ticket_with_ai(session=session, ticket=ticket)
+
+    return get_ticket_or_404(session=session, ticket_id=ticket_id)
