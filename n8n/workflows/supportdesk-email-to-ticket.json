@@ -1,0 +1,86 @@
+{
+  "name": "supportdesk-email-to-ticket",
+  "nodes": [
+    {
+      "parameters": {
+        "options": {}
+      },
+      "type": "n8n-nodes-base.emailReadImap",
+      "typeVersion": 2.1,
+      "position": [
+        0,
+        0
+      ],
+      "id": "7d5bb56c-2c5c-46cb-aa07-f16dd509df35",
+      "name": "Email Trigger (IMAP)",
+      "credentials": {
+        "imap": {
+          "id": "siV6jeeJpfxkrlM9",
+          "name": "IMAP account"
+        }
+      }
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "http://host.docker.internal:8000/api/v1/tickets/email-intake",
+        "sendBody": true,
+        "bodyParameters": {
+          "parameters": [
+            {
+              "name": "from_name",
+              "value": "={{ $json.from.split(\"@\")[0] }}"
+            },
+            {
+              "name": "from_email",
+              "value": "={{ $json.from }}"
+            },
+            {
+              "name": "email_subject",
+              "value": "={{ $json.subject }}"
+            },
+            {
+              "name": "email_body",
+              "value": "={{ $json.textPlain || $json.textHtml || \"No email body found.\" }}"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        208,
+        0
+      ],
+      "id": "19ba0308-c29b-4927-b3e8-dc07121f8ba4",
+      "name": "HTTP Request"
+    }
+  ],
+  "pinData": {},
+  "connections": {
+    "Email Trigger (IMAP)": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "active": true,
+  "settings": {
+    "executionOrder": "v1",
+    "binaryMode": "separate"
+  },
+  "versionId": "a32627d5-742d-4e14-bf4f-3cb6efdee256",
+  "meta": {
+    "templateCredsSetupCompleted": true,
+    "instanceId": "ada36ad66a07f78d713ca59b10630cc85c3ad60798d56591d184fd481b5a1581"
+  },
+  "id": "MKUMROp4eTyipfsI",
+  "tags": []
+}
