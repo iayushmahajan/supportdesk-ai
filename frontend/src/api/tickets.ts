@@ -55,3 +55,13 @@ export async function processTicketWithAi(
 
   return response.data;
 }
+
+export async function reprocessTicketWithAi(
+  ticketId: string
+): Promise<TicketDetail> {
+  const response = await apiClient.post<TicketDetail>(
+    `/tickets/${ticketId}/reprocess-ai`
+  );
+
+  return response.data;
+}

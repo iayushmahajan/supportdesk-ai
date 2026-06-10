@@ -8,8 +8,6 @@ class User(SQLModel, table=True):
     """
     Simplified user model for demo/admin ownership.
 
-    We are not adding full JWT auth in Phase 2.
-    This gives the database a realistic user foundation.
     """
 
     __tablename__ = "users"

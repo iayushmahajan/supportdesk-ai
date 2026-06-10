@@ -23,11 +23,6 @@ export function TicketSubmissionPage({
                     <p>“I attached documents and need this processed.”</p>
                 </div>
 
-                <div className="mt-6 rounded-md bg-muted p-4 text-sm">
-                    In Phase 4, these tickets will be processed by the AI service layer to
-                    detect category, priority, missing information, routing, summary, and
-                    response draft.
-                </div>
             </div>
         </div>
     );

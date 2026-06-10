@@ -3,6 +3,7 @@ import uuid
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlmodel import Session
 
+from app.core.config import get_settings
 from app.core.database import get_session
 from app.models.ticket import TicketSource
 from app.schemas.ticket import (
@@ -25,6 +26,7 @@ from app.services.ticket_service import (
 )
 
 router = APIRouter(prefix="/tickets", tags=["Tickets"])
+settings = get_settings()
 
 
 def _ticket_has_ai_result(ticket) -> bool:
@@ -36,6 +38,31 @@ def _ticket_has_ai_result(ticket) -> bool:
         or ticket.category != "unclassified"
         or ticket.priority != "unassigned"
     )
+
+
+def _auto_process_ticket_if_enabled(
+    *,
+    session: Session,
+    ticket_id: uuid.UUID,
+):
+    """
+    Automatically run AI processing after ticket creation.
+
+    We re-fetch the ticket after the ticket-created automation event because
+    automation event creation commits the session and refreshes relationships.
+    """
+    if not settings.enable_auto_ai_processing:
+        return get_ticket_or_404(session=session, ticket_id=ticket_id)
+
+    ticket = get_ticket_or_404(session=session, ticket_id=ticket_id)
+
+    if _ticket_has_ai_result(ticket):
+        return ticket
+
+    processed_ticket = process_ticket_with_ai(session=session, ticket=ticket)
+    trigger_ai_completed_automation(session=session, ticket=processed_ticket)
+
+    return get_ticket_or_404(session=session, ticket_id=ticket_id)
 
 
 @router.post(
@@ -50,7 +77,12 @@ def create_ticket_endpoint(
     ticket = create_new_ticket(session=session, ticket_data=ticket_data)
     trigger_ticket_created_automation(session=session, ticket=ticket)
 
-    return ticket
+    processed_or_original_ticket = _auto_process_ticket_if_enabled(
+        session=session,
+        ticket_id=ticket.id,
+    )
+
+    return processed_or_original_ticket
 
 
 @router.post(
@@ -72,6 +104,11 @@ def create_ticket_from_email_endpoint(
 
     ticket = create_new_ticket(session=session, ticket_data=ticket_data)
     trigger_ticket_created_automation(session=session, ticket=ticket)
+
+    _auto_process_ticket_if_enabled(
+        session=session,
+        ticket_id=ticket.id,
+    )
 
     return get_ticket_or_404(session=session, ticket_id=ticket.id)
 
@@ -114,8 +151,26 @@ def process_ticket_ai_endpoint(
     if _ticket_has_ai_result(ticket):
         raise HTTPException(
             status_code=status.HTTP_409_CONFLICT,
-            detail="Ticket has already been processed by AI",
+            detail="Ticket has already been processed by AI. Use the reprocess endpoint instead.",
         )
+
+    processed_ticket = process_ticket_with_ai(session=session, ticket=ticket)
+    trigger_ai_completed_automation(session=session, ticket=processed_ticket)
+
+    return get_ticket_or_404(session=session, ticket_id=ticket_id)
+
+
+@router.post("/{ticket_id}/reprocess-ai", response_model=TicketDetailRead)
+def reprocess_ticket_ai_endpoint(
+    ticket_id: uuid.UUID,
+    session: Session = Depends(get_session),
+):
+    """
+    Run AI processing again even if the ticket already has AI output.
+
+    This keeps previous agent runs as history and appends a new workflow run.
+    """
+    ticket = get_ticket_or_404(session=session, ticket_id=ticket_id)
 
     processed_ticket = process_ticket_with_ai(session=session, ticket=ticket)
     trigger_ai_completed_automation(session=session, ticket=processed_ticket)

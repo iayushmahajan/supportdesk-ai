@@ -88,8 +88,7 @@ export function TicketSubmissionForm({
             <CardHeader>
                 <CardTitle>Submit a support request</CardTitle>
                 <CardDescription>
-                    Create a new ticket from a form or email-style request. AI processing
-                    will be added in a later phase.
+                    Create a new ticket from a form.
                 </CardDescription>
             </CardHeader>
 
@@ -195,10 +194,6 @@ export function TicketSubmissionForm({
                             )}
                         />
 
-                        <div className="rounded-md border border-dashed bg-muted/50 px-4 py-3 text-sm text-muted-foreground">
-                            Attachment upload placeholder: file upload support will be added
-                            later if needed. Phase 3 keeps this as a UI note only.
-                        </div>
 
                         <Button type="submit" disabled={form.formState.isSubmitting}>
                             {form.formState.isSubmitting ? "Submitting..." : "Create Ticket"}

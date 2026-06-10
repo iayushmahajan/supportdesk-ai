@@ -23,6 +23,7 @@ os.environ["DATABASE_URL"] = TEST_DATABASE_URL
 os.environ["ENABLE_DEMO_SEED"] = "false"
 os.environ["LLM_API_KEY"] = ""
 os.environ["ENABLE_LLM_FALLBACK"] = "true"
+os.environ["ENABLE_AUTO_AI_PROCESSING"] = "false"
 os.environ["ENABLE_N8N_AUTOMATION"] = "false"
 os.environ["N8N_WEBHOOK_TICKET_CREATED_URL"] = ""
 os.environ["N8N_WEBHOOK_AI_COMPLETED_URL"] = ""

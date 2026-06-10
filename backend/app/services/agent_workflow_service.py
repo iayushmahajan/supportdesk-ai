@@ -387,7 +387,7 @@ def run_multi_agent_ticket_workflow(
     ticket: Ticket,
 ) -> MultiAgentWorkflowResult:
     """
-    Runs the Phase 5 multi-agent workflow and stores every step as agent_run.
+    Runs the multi-agent workflow and stores every step as agent_run.
 
     Each agent receives the context produced by previous agents.
     """
@@ -550,7 +550,7 @@ def convert_workflow_result_to_ticket_ai_result(
     workflow_result: MultiAgentWorkflowResult,
 ) -> TicketAIResult:
     """
-    Keeps compatibility with the Phase 4 TicketAIResult shape.
+    Keeps compatibility with the TicketAIResult shape.
     """
     return TicketAIResult(
         category=workflow_result.category,

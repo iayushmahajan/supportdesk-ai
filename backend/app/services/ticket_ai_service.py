@@ -17,18 +17,17 @@ def generate_ticket_ai_result(ticket: Ticket) -> TicketAIResult:
     """
     Compatibility function used by tests and existing imports.
 
-    Phase 5 now runs the real multi-agent workflow through process_ticket_with_ai.
     This function remains for backwards compatibility and deterministic test mocking.
     """
     raise RuntimeError(
-        "generate_ticket_ai_result is no longer used directly in Phase 5. "
+        "generate_ticket_ai_result is no longer used directly. "
         "Use process_ticket_with_ai instead."
     )
 
 
 def process_ticket_with_ai(session: Session, ticket: Ticket) -> Ticket:
     """
-    Processes one ticket with the Phase 5 multi-agent workflow.
+    Processes one ticket with the multi-agent workflow.
 
     Stores:
     - one agent_run per agent

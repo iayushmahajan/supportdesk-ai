@@ -26,8 +26,6 @@ def create_db_and_tables() -> None:
     """
     Creates database tables for local development.
 
-    For this portfolio project, this keeps Phase 2 simple.
-    Later, Alembic can be added if needed.
     """
     # Import models before create_all so SQLModel knows them.
     from app.models.ticket import (  # noqa: F401

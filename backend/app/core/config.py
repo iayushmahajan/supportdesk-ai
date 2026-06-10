@@ -21,6 +21,7 @@ class Settings(BaseSettings):
     llm_model: str = "gpt-4.1-mini"
     llm_timeout_seconds: int = 30
     enable_llm_fallback: bool = True
+    enable_auto_ai_processing: bool = True
 
     # n8n automation settings
     n8n_webhook_ticket_created_url: str | None = None

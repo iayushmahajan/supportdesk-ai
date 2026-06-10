@@ -1,6 +1,13 @@
 import { useEffect, useMemo, useRef, useState } from "react";
+
+import {
+  getTicketById,
+  processTicketWithAi,
+  reprocessTicketWithAi,
+  updateTicketStatus,
+} from "@/api/tickets";
 import { AutomationEventsCard } from "@/components/tickets/AutomationEventsCard";
-import { processTicketWithAi, updateTicketStatus } from "@/api/tickets";
+import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
   Card,
@@ -9,21 +16,18 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { CategoryBadge } from "@/components/tickets/CategoryBadge";
-import { PriorityBadge } from "@/components/tickets/PriorityBadge";
-import { SourceBadge } from "@/components/tickets/SourceBadge";
-import { StatusBadge } from "@/components/tickets/StatusBadge";
 import { formatDateTime, formatEnumLabel } from "@/lib/format";
 import type {
   AgentRun,
-  TicketDetail as TicketDetailType,
+  TicketCategory,
+  TicketDetail,
+  TicketPriority,
   TicketStatus,
 } from "@/types/ticket";
 
 type TicketDetailProps = {
-  ticket: TicketDetailType;
+  ticketId: string;
   onBack: () => void;
-  onStatusUpdated: () => void;
 };
 
 const statusOptions: TicketStatus[] = [
@@ -34,6 +38,46 @@ const statusOptions: TicketStatus[] = [
   "closed",
 ];
 
+function getStatusBadgeVariant(status: TicketStatus) {
+  if (status === "open") {
+    return "secondary" as const;
+  }
+
+  if (status === "in_progress" || status === "waiting_customer") {
+    return "default" as const;
+  }
+
+  if (status === "resolved" || status === "closed") {
+    return "outline" as const;
+  }
+
+  return "secondary" as const;
+}
+
+function getPriorityBadgeVariant(priority: TicketPriority) {
+  if (priority === "urgent" || priority === "high") {
+    return "destructive" as const;
+  }
+
+  if (priority === "medium") {
+    return "default" as const;
+  }
+
+  if (priority === "low") {
+    return "secondary" as const;
+  }
+
+  return "outline" as const;
+}
+
+function getCategoryBadgeVariant(category: TicketCategory) {
+  if (category === "unclassified") {
+    return "outline" as const;
+  }
+
+  return "secondary" as const;
+}
+
 function getMissingInformationFromAgentRuns(agentRuns: AgentRun[]): string[] {
   const missingInfoAgentRun =
     agentRuns.find(
@@ -43,7 +87,8 @@ function getMissingInformationFromAgentRuns(agentRuns: AgentRun[]): string[] {
       Array.isArray(agentRun.output_json?.missing_information)
     );
 
-  const missingInformation = missingInfoAgentRun?.output_json?.missing_information;
+  const missingInformation =
+    missingInfoAgentRun?.output_json?.missing_information;
 
   if (!Array.isArray(missingInformation)) {
     return [];
@@ -54,105 +99,226 @@ function getMissingInformationFromAgentRuns(agentRuns: AgentRun[]): string[] {
   });
 }
 
-export function TicketDetail({
-  ticket,
-  onBack,
-  onStatusUpdated,
-}: TicketDetailProps) {
+function JsonPreview({
+  title,
+  value,
+}: {
+  title: string;
+  value: Record<string, unknown> | null;
+}) {
+  if (!value) {
+    return null;
+  }
+
+  return (
+    <details className="mt-3">
+      <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
+        {title}
+      </summary>
+
+      <pre className="mt-3 max-h-72 overflow-auto rounded-md bg-muted p-3 text-xs">
+        {JSON.stringify(value, null, 2)}
+      </pre>
+    </details>
+  );
+}
+
+export function TicketDetail({ ticketId, onBack }: TicketDetailProps) {
+  const [ticket, setTicket] = useState<TicketDetail | null>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isUpdatingStatus, setIsUpdatingStatus] = useState(false);
+  const [isProcessingAi, setIsProcessingAi] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [aiError, setAiError] = useState<string | null>(null);
+  const [shouldScrollToAiResult, setShouldScrollToAiResult] = useState(false);
+
   const aiResultRef = useRef<HTMLDivElement | null>(null);
 
-  const [selectedStatus, setSelectedStatus] = useState<TicketStatus>(
-    ticket.status
-  );
-  const [isUpdating, setIsUpdating] = useState(false);
-  const [isProcessingAi, setIsProcessingAi] = useState(false);
-  const [shouldScrollToAiResult, setShouldScrollToAiResult] = useState(false);
-  const [updateError, setUpdateError] = useState<string | null>(null);
-  const [aiError, setAiError] = useState<string | null>(null);
+  useEffect(() => {
+    let isMounted = true;
+
+    async function loadTicket() {
+      try {
+        setIsLoading(true);
+        setLoadError(null);
+
+        const loadedTicket = await getTicketById(ticketId);
+
+        if (isMounted) {
+          setTicket(loadedTicket);
+        }
+      } catch (error) {
+        console.error(error);
+
+        if (isMounted) {
+          setLoadError(
+            "Ticket could not be loaded. Please check that the backend is running."
+          );
+        }
+      } finally {
+        if (isMounted) {
+          setIsLoading(false);
+        }
+      }
+    }
+
+    loadTicket();
+
+    return () => {
+      isMounted = false;
+    };
+  }, [ticketId]);
 
   const sortedAgentRuns = useMemo(() => {
-    return [...ticket.agent_runs].sort(
-      (a, b) => a.execution_order - b.execution_order
-    );
-  }, [ticket.agent_runs]);
+    if (!ticket) {
+      return [];
+    }
 
+    return [...ticket.agent_runs].sort((a, b) => {
+      const createdAtDifference =
+        new Date(a.created_at).getTime() - new Date(b.created_at).getTime();
+
+      if (createdAtDifference !== 0) {
+        return createdAtDifference;
+      }
+
+      return a.execution_order - b.execution_order;
+    });
+  }, [ticket]);
 
   const latestGeneratedResponse = useMemo(() => {
+    if (!ticket) {
+      return undefined;
+    }
+
     return [...ticket.generated_responses].sort(
       (a, b) =>
         new Date(b.created_at).getTime() - new Date(a.created_at).getTime()
     )[0];
-  }, [ticket.generated_responses]);
+  }, [ticket]);
 
-  const missingInformation = getMissingInformationFromAgentRuns(ticket.agent_runs);
+  const hasAiResult = useMemo(() => {
+    if (!ticket) {
+      return false;
+    }
 
-  const hasAiResult = Boolean(
-    ticket.internal_summary ||
+    return Boolean(
+      ticket.internal_summary ||
       ticket.suggested_department ||
       ticket.category !== "unclassified" ||
       ticket.priority !== "unassigned" ||
       ticket.agent_runs.length > 0 ||
       ticket.generated_responses.length > 0
-  );
+    );
+  }, [ticket]);
+
+  const missingInformation = useMemo(() => {
+    if (!ticket) {
+      return [];
+    }
+
+    return getMissingInformationFromAgentRuns(ticket.agent_runs);
+  }, [ticket]);
 
   useEffect(() => {
-    setSelectedStatus(ticket.status);
-  }, [ticket.status]);
-
-  useEffect(() => {
-    if (!shouldScrollToAiResult || !hasAiResult) {
+    if (!shouldScrollToAiResult || !aiResultRef.current) {
       return;
     }
 
-    const timeoutId = window.setTimeout(() => {
-      aiResultRef.current?.scrollIntoView({
-        behavior: "smooth",
-        block: "start",
-      });
+    aiResultRef.current.scrollIntoView({
+      behavior: "smooth",
+      block: "start",
+    });
 
-      setShouldScrollToAiResult(false);
-    }, 150);
+    setShouldScrollToAiResult(false);
+  }, [shouldScrollToAiResult, ticket]);
 
-    return () => window.clearTimeout(timeoutId);
-  }, [shouldScrollToAiResult, hasAiResult, ticket.updated_at]);
+  async function handleStatusChange(nextStatus: TicketStatus) {
+    if (!ticket) {
+      return;
+    }
 
-  async function handleStatusUpdate() {
     try {
-      setIsUpdating(true);
-      setUpdateError(null);
+      setIsUpdatingStatus(true);
 
-      await updateTicketStatus(ticket.id, {
-        status: selectedStatus,
+      const updatedTicket = await updateTicketStatus(ticket.id, {
+        status: nextStatus,
       });
 
-      onStatusUpdated();
+      setTicket((currentTicket) => {
+        if (!currentTicket) {
+          return currentTicket;
+        }
+
+        return {
+          ...currentTicket,
+          ...updatedTicket,
+        };
+      });
     } catch (error) {
       console.error(error);
-      setUpdateError("Status could not be updated.");
+      setLoadError("Ticket status could not be updated. Please try again.");
     } finally {
-      setIsUpdating(false);
+      setIsUpdatingStatus(false);
     }
   }
 
-  async function handleAiProcessing() {
-    if (hasAiResult) {
+  async function handleProcessWithAi() {
+    if (!ticket) {
       return;
     }
 
     try {
-      setIsProcessingAi(true);
       setAiError(null);
+      setIsProcessingAi(true);
 
-      await processTicketWithAi(ticket.id);
+      const updatedTicket = hasAiResult
+        ? await reprocessTicketWithAi(ticket.id)
+        : await processTicketWithAi(ticket.id);
 
+      setTicket(updatedTicket);
       setShouldScrollToAiResult(true);
-      onStatusUpdated();
     } catch (error) {
       console.error(error);
-      setAiError("AI processing failed. Check backend logs and LLM settings.");
+
+      setAiError(
+        hasAiResult
+          ? "Ticket could not be reprocessed with AI. Please try again."
+          : "Ticket could not be processed with AI. Please try again."
+      );
     } finally {
       setIsProcessingAi(false);
     }
+  }
+
+  if (isLoading) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Loading ticket...</CardTitle>
+          <CardDescription>
+            The selected support ticket is being loaded.
+          </CardDescription>
+        </CardHeader>
+      </Card>
+    );
+  }
+
+  if (loadError || !ticket) {
+    return (
+      <Card>
+        <CardHeader>
+          <CardTitle>Ticket unavailable</CardTitle>
+          <CardDescription>{loadError ?? "Ticket not found."}</CardDescription>
+        </CardHeader>
+
+        <CardContent>
+          <Button variant="outline" onClick={onBack}>
+            Back to dashboard
+          </Button>
+        </CardContent>
+      </Card>
+    );
   }
 
   return (
@@ -162,107 +328,61 @@ export function TicketDetail({
       </Button>
 
       <Card>
-        <CardHeader className="space-y-4">
-          <div className="flex flex-col gap-3 md:flex-row md:items-start md:justify-between">
-            <div>
-              <CardTitle className="text-2xl">{ticket.subject}</CardTitle>
+        <CardHeader>
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="space-y-2">
+              <CardTitle>{ticket.subject}</CardTitle>
               <CardDescription>
-                Created by {ticket.requester_name} on{" "}
-                {formatDateTime(ticket.created_at)}
+                Submitted by {ticket.requester_name} · {ticket.requester_email}
               </CardDescription>
             </div>
 
             <div className="flex flex-wrap gap-2">
-              <StatusBadge status={ticket.status} />
-              <PriorityBadge priority={ticket.priority} />
-              <CategoryBadge category={ticket.category} />
-              <SourceBadge source={ticket.source} />
+              <Badge variant={getStatusBadgeVariant(ticket.status)}>
+                {formatEnumLabel(ticket.status)}
+              </Badge>
+
+              <Badge variant={getPriorityBadgeVariant(ticket.priority)}>
+                {formatEnumLabel(ticket.priority)}
+              </Badge>
+
+              <Badge variant={getCategoryBadgeVariant(ticket.category)}>
+                {formatEnumLabel(ticket.category)}
+              </Badge>
+
+              <Badge variant="outline">{formatEnumLabel(ticket.source)}</Badge>
             </div>
           </div>
         </CardHeader>
 
         <CardContent className="space-y-6">
-          <section className="grid gap-4 md:grid-cols-2">
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <p className="text-sm font-medium">Requester</p>
-              <p className="mt-1">{ticket.requester_name}</p>
-              <p className="text-sm text-muted-foreground">
-                {ticket.requester_email}
-              </p>
+          <div className="grid gap-4 text-sm md:grid-cols-2 lg:grid-cols-4">
+            <div>
+              <p className="text-muted-foreground">Created</p>
+              <p className="font-medium">{formatDateTime(ticket.created_at)}</p>
             </div>
 
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <p className="text-sm font-medium">Suggested department</p>
-              <p className="mt-1">
+            <div>
+              <p className="text-muted-foreground">Last updated</p>
+              <p className="font-medium">{formatDateTime(ticket.updated_at)}</p>
+            </div>
+
+            <div>
+              <p className="text-muted-foreground">Suggested department</p>
+              <p className="font-medium">
                 {ticket.suggested_department ?? "Not assigned yet"}
               </p>
-              <p className="text-sm text-muted-foreground">
-                Generated by AI processing.
-              </p>
             </div>
-          </section>
 
-          <section className="space-y-2">
-            <h3 className="font-semibold">Description</h3>
-            <p className="whitespace-pre-wrap rounded-lg border bg-card p-4 text-sm leading-6">
-              {ticket.description}
-            </p>
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="font-semibold">AI processing</h3>
-
-            {aiError ? (
-              <div className="rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {aiError}
-              </div>
-            ) : null}
-
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <div className="flex flex-col gap-4 md:flex-row md:items-center md:justify-between">
-                <div>
-                  <p className="font-medium">
-                    {hasAiResult
-                      ? "AI triage already completed"
-                      : "Run ticket triage workflow"}
-                  </p>
-                  <p className="text-sm text-muted-foreground">
-                    {hasAiResult
-                      ? "This ticket already has AI-generated triage results. A controlled re-run option can be added later."
-                      : "Classifies category, detects priority, suggests routing, extracts missing information, and drafts a response."}
-                  </p>
-                </div>
-
-                <Button
-                  onClick={handleAiProcessing}
-                  disabled={isProcessingAi || hasAiResult}
-                >
-                  {isProcessingAi
-                    ? "Processing..."
-                    : hasAiResult
-                      ? "AI Processed"
-                      : "Process with AI"}
-                </Button>
-              </div>
-            </div>
-          </section>
-
-          <section className="space-y-3">
-            <h3 className="font-semibold">Update status</h3>
-
-            {updateError ? (
-              <div className="rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive">
-                {updateError}
-              </div>
-            ) : null}
-
-            <div className="flex flex-col gap-3 md:flex-row md:items-center">
+            <div>
+              <p className="text-muted-foreground">Status</p>
               <select
-                value={selectedStatus}
+                className="mt-1 w-full rounded-md border bg-background px-3 py-2 text-sm"
+                value={ticket.status}
+                disabled={isUpdatingStatus}
                 onChange={(event) =>
-                  setSelectedStatus(event.target.value as TicketStatus)
+                  handleStatusChange(event.target.value as TicketStatus)
                 }
-                className="flex h-10 rounded-md border border-input bg-background px-3 py-2 text-sm"
               >
                 {statusOptions.map((status) => (
                   <option key={status} value={status}>
@@ -270,15 +390,41 @@ export function TicketDetail({
                   </option>
                 ))}
               </select>
-
-              <Button
-                onClick={handleStatusUpdate}
-                disabled={isUpdating || selectedStatus === ticket.status}
-              >
-                {isUpdating ? "Updating..." : "Update Status"}
-              </Button>
             </div>
-          </section>
+          </div>
+
+          <div>
+            <p className="mb-2 text-sm font-medium">Description</p>
+            <div className="whitespace-pre-wrap rounded-md border bg-muted/40 p-4 text-sm leading-6">
+              {ticket.description}
+            </div>
+          </div>
+
+          <div className="flex flex-col gap-3 border-t pt-5 sm:flex-row sm:items-center sm:justify-between">
+            <div>
+              <p className="font-medium">AI triage</p>
+              <p className="text-sm text-muted-foreground">
+                Run or re-run the multi-agent workflow to classify, prioritize,
+                route, and draft a response.
+              </p>
+            </div>
+
+            <Button onClick={handleProcessWithAi} disabled={isProcessingAi}>
+              {isProcessingAi
+                ? hasAiResult
+                  ? "Reprocessing..."
+                  : "Processing..."
+                : hasAiResult
+                  ? "Reprocess with AI"
+                  : "Process with AI"}
+            </Button>
+          </div>
+
+          {aiError ? (
+            <div className="rounded-md border border-destructive bg-destructive/10 px-4 py-3 text-sm text-destructive">
+              {aiError}
+            </div>
+          ) : null}
         </CardContent>
       </Card>
 
@@ -290,153 +436,178 @@ export function TicketDetail({
           <CardHeader>
             <CardTitle>AI triage result</CardTitle>
             <CardDescription>
-              Structured result stored in the ticket and agent execution log.
+              Classification, routing, summary, and missing information detected
+              by the agent workflow.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4 text-sm">
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <p className="font-medium">Internal summary</p>
-              <p className="mt-2 whitespace-pre-wrap leading-6 text-muted-foreground">
-                {ticket.internal_summary ?? "Not generated yet."}
-              </p>
+          <CardContent className="space-y-5">
+            <div className="grid gap-3 sm:grid-cols-3">
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Category</p>
+                <p className="font-medium">{formatEnumLabel(ticket.category)}</p>
+              </div>
+
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Priority</p>
+                <p className="font-medium">{formatEnumLabel(ticket.priority)}</p>
+              </div>
+
+              <div className="rounded-md border p-3">
+                <p className="text-xs text-muted-foreground">Department</p>
+                <p className="font-medium">
+                  {ticket.suggested_department ?? "Not assigned"}
+                </p>
+              </div>
             </div>
 
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <p className="font-medium">Missing information</p>
+            <div>
+              <p className="mb-2 text-sm font-medium">Internal summary</p>
+              <div className="min-h-24 rounded-md border bg-muted/40 p-4 text-sm leading-6">
+                {ticket.internal_summary ??
+                  "No AI summary available yet. Run AI processing to generate one."}
+              </div>
+            </div>
+
+            <div>
+              <p className="mb-2 text-sm font-medium">Missing information</p>
 
               {missingInformation.length > 0 ? (
-                <ul className="mt-2 list-disc space-y-1 pl-5 text-muted-foreground">
+                <ul className="list-disc space-y-1 rounded-md border bg-muted/40 p-4 pl-8 text-sm">
                   {missingInformation.map((item) => (
                     <li key={item}>{item}</li>
                   ))}
                 </ul>
               ) : (
-                <p className="mt-2 text-muted-foreground">
+                <div className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
                   No missing information detected yet.
-                </p>
+                </div>
               )}
-            </div>
-
-            <div className="rounded-lg border bg-muted/40 p-4">
-              <p className="font-medium">Latest generated response draft</p>
-              <p className="mt-2 whitespace-pre-wrap leading-6 text-muted-foreground">
-                {latestGeneratedResponse?.response_text ??
-                  "No response draft generated yet."}
-              </p>
             </div>
           </CardContent>
         </Card>
 
         <Card>
           <CardHeader>
-            <CardTitle>Agent execution timeline</CardTitle>
+            <CardTitle>Generated response draft</CardTitle>
             <CardDescription>
-              Each AI workflow step is stored as a separate agent run.
+              Suggested answer that a support agent can review before sending.
             </CardDescription>
           </CardHeader>
 
-          <CardContent className="space-y-4">
-            {sortedAgentRuns.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                No AI execution logs yet.
-              </p>
-            ) : (
-              sortedAgentRuns.map((agentRun) => (
-                <div key={agentRun.id} className="relative rounded-lg border p-4">
-                  <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
-                    <div className="flex items-start gap-3">
-                      <div className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full border bg-muted text-xs font-semibold">
-                        {agentRun.execution_order}
-                      </div>
-
-                      <div>
-                        <p className="font-medium">{agentRun.agent_name}</p>
-                        <p className="text-sm text-muted-foreground">
-                          {agentRun.output_json &&
-                          typeof agentRun.output_json.reasoning === "string"
-                            ? agentRun.output_json.reasoning
-                            : "Agent completed its workflow step."}
-                        </p>
-                      </div>
-                    </div>
-
-                    <span className="rounded-full border px-3 py-1 text-xs font-medium">
-                      {formatEnumLabel(agentRun.status)}
-                    </span>
-                  </div>
-
-                  <div className="mt-3 grid gap-2 text-sm text-muted-foreground md:grid-cols-2">
-                    <p>
-                      Started:{" "}
-                      {agentRun.started_at
-                        ? formatDateTime(agentRun.started_at)
-                        : "Not started"}
-                    </p>
-                    <p>
-                      Completed:{" "}
-                      {agentRun.completed_at
-                        ? formatDateTime(agentRun.completed_at)
-                        : "Not completed"}
-                    </p>
-                  </div>
-
-                  {agentRun.output_json ? (
-                    <details className="mt-3">
-                      <summary className="cursor-pointer text-sm font-medium text-muted-foreground">
-                        View agent output
-                      </summary>
-
-                      <pre className="mt-3 max-h-56 overflow-auto rounded-md bg-muted p-3 text-xs">
-                        {JSON.stringify(agentRun.output_json, null, 2)}
-                      </pre>
-                    </details>
-                  ) : null}
-
-                  {agentRun.error_message ? (
-                    <p className="mt-3 text-sm text-destructive">
-                      {agentRun.error_message}
-                    </p>
-                  ) : null}
+          <CardContent>
+            {latestGeneratedResponse ? (
+              <div className="space-y-3">
+                <div className="whitespace-pre-wrap rounded-md border bg-muted/40 p-4 text-sm leading-6">
+                  {latestGeneratedResponse.response_text}
                 </div>
-              ))
+
+                <p className="text-xs text-muted-foreground">
+                  Tone: {formatEnumLabel(latestGeneratedResponse.tone)} ·
+                  Created: {formatDateTime(latestGeneratedResponse.created_at)}
+                </p>
+              </div>
+            ) : (
+              <p className="rounded-md border bg-muted/40 p-4 text-sm text-muted-foreground">
+                No response draft generated yet.
+              </p>
             )}
           </CardContent>
         </Card>
       </section>
-   
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Agent execution timeline</CardTitle>
+          <CardDescription>
+            Each row represents one agent in the multi-agent workflow.
+          </CardDescription>
+        </CardHeader>
+
+        <CardContent className="space-y-4">
+          {sortedAgentRuns.length === 0 ? (
+            <p className="text-sm text-muted-foreground">
+              No agent runs recorded yet.
+            </p>
+          ) : (
+            sortedAgentRuns.map((agentRun) => (
+              <div key={agentRun.id} className="rounded-lg border p-4">
+                <div className="flex flex-col gap-2 md:flex-row md:items-center md:justify-between">
+                  <div>
+                    <p className="font-medium">
+                      {agentRun.execution_order}. {agentRun.agent_name}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      Created: {formatDateTime(agentRun.created_at)}
+                    </p>
+                  </div>
+
+                  <Badge
+                    variant={
+                      agentRun.status === "completed"
+                        ? "default"
+                        : agentRun.status === "failed"
+                          ? "destructive"
+                          : "secondary"
+                    }
+                  >
+                    {formatEnumLabel(agentRun.status)}
+                  </Badge>
+                </div>
+
+                {agentRun.error_message ? (
+                  <p className="mt-3 text-sm text-destructive">
+                    {agentRun.error_message}
+                  </p>
+                ) : null}
+
+                <JsonPreview title="View input JSON" value={agentRun.input_json} />
+                <JsonPreview
+                  title="View output JSON"
+                  value={agentRun.output_json}
+                />
+              </div>
+            ))
+          )}
+        </CardContent>
+      </Card>
+
       <AutomationEventsCard automationEvents={ticket.automation_events} />
 
       <Card>
         <CardHeader>
           <CardTitle>Message history</CardTitle>
           <CardDescription>
-            Initial requester message is stored when the ticket is created.
+            Original requester message and future conversation history.
           </CardDescription>
         </CardHeader>
 
         <CardContent className="space-y-4">
           {ticket.messages.length === 0 ? (
             <p className="text-sm text-muted-foreground">
-              No messages available.
+              No messages recorded yet.
             </p>
           ) : (
             ticket.messages.map((message) => (
               <div key={message.id} className="rounded-lg border p-4">
-                <div className="mb-2 flex items-center justify-between gap-2">
-                  <p className="text-sm font-medium">
-                    {formatEnumLabel(message.sender_type)}
-                  </p>
+                <div className="mb-2 flex flex-col gap-1 sm:flex-row sm:items-center sm:justify-between">
+                  <div>
+                    <p className="font-medium">
+                      {message.sender_name ??
+                        formatEnumLabel(message.sender_type)}
+                    </p>
+                    <p className="text-sm text-muted-foreground">
+                      {message.sender_email ??
+                        formatEnumLabel(message.sender_type)}
+                    </p>
+                  </div>
+
                   <p className="text-xs text-muted-foreground">
                     {formatDateTime(message.created_at)}
                   </p>
                 </div>
 
-                <p className="text-sm text-muted-foreground">
-                  {message.sender_name ?? "Unknown sender"}
-                </p>
-
-                <p className="mt-3 whitespace-pre-wrap text-sm leading-6">
+                <p className="whitespace-pre-wrap text-sm leading-6">
                   {message.body}
                 </p>
               </div>

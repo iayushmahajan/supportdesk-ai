@@ -1,13 +1,12 @@
 import type { ReactNode } from "react";
 import { Button } from "@/components/ui/button";
 
-type AppView = "submit" | "email" | "dashboard" | "detail";
+type AppView = "submit" | "dashboard" | "detail";
 
 type AppShellProps = {
   children: ReactNode;
   currentView: AppView;
   onNavigateToSubmit: () => void;
-  onNavigateToEmail: () => void;
   onNavigateToDashboard: () => void;
 };
 
@@ -15,7 +14,6 @@ export function AppShell({
   children,
   currentView,
   onNavigateToSubmit,
-  onNavigateToEmail,
   onNavigateToDashboard,
 }: AppShellProps) {
   return (
@@ -28,7 +26,7 @@ export function AppShell({
               Support ticket triage dashboard
             </h1>
             <p className="text-sm text-muted-foreground">
-              Phase 6: email-style intake and n8n automation events.
+              AI-powered support ticket intake, triage, and workflow automation.
             </p>
           </div>
 
@@ -38,13 +36,6 @@ export function AppShell({
               onClick={onNavigateToSubmit}
             >
               Submit Ticket
-            </Button>
-
-            <Button
-              variant={currentView === "email" ? "default" : "outline"}
-              onClick={onNavigateToEmail}
-            >
-              Email Intake
             </Button>
 
             <Button
