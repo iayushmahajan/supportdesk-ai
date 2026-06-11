@@ -1,4 +1,3 @@
-````markdown
 # SupportDesk AI
 
 AI-powered support ticket triage and workflow automation platform built with React, TypeScript, FastAPI, PostgreSQL, Docker, and LLM-based agent workflows.
@@ -118,7 +117,6 @@ PostgreSQL Database          AI Processing Service
 Tickets, Messages,           Multi-Agent Workflow
 Agent Runs, Responses,       Classification, Priority,
 Automation Events            Routing, Summary, Draft
-````
 
 The backend is structured around API routes, schemas, models, and service layers. Ticket creation and AI processing are separated into dedicated backend services to keep the codebase easier to extend and test.
 
