@@ -99,7 +99,6 @@ Current status: **Ongoing, around 70–80% complete**
 
 ## Architecture Overview
 
-```text
 User / Support Request
         |
         v
@@ -117,6 +116,7 @@ PostgreSQL Database          AI Processing Service
 Tickets, Messages,           Multi-Agent Workflow
 Agent Runs, Responses,       Classification, Priority,
 Automation Events            Routing, Summary, Draft
+
 
 The backend is structured around API routes, schemas, models, and service layers. Ticket creation and AI processing are separated into dedicated backend services to keep the codebase easier to extend and test.
 
