@@ -103,71 +103,56 @@ SupportDesk AI uses a modular full-stack architecture. The React frontend handle
 
 ```mermaid
 flowchart LR
-    %% External users and intake channels
-    User[User / Requester]
-    Email[Support Email Inbox<br/>Zoho Mail]
-    Admin[Support Admin]
+    User["User / Requester"]
+    Admin["Support Admin"]
+    Email["Support Email Inbox"]
 
-    %% Frontend
-    subgraph FE[Frontend - React + TypeScript]
-        SubmitForm[Submit Ticket Form]
-        Dashboard[Admin Dashboard]
-        TicketDetail[Ticket Detail View]
+    subgraph Frontend["Frontend - React + TypeScript"]
+        SubmitForm["Submit Ticket Form"]
+        Dashboard["Admin Dashboard"]
+        TicketDetail["Ticket Detail View"]
     end
 
-    %% Automation
-    subgraph AUTO[Workflow Automation - n8n]
-        EmailTrigger[IMAP Email Trigger]
-        EmailToTicket[Email-to-Ticket Workflow]
-        WebhookEvents[Automation Webhooks]
+    subgraph Automation["Workflow Automation - n8n"]
+        EmailTrigger["IMAP Email Trigger"]
+        EmailWorkflow["Email-to-Ticket Workflow"]
+        Webhooks["Automation Webhooks"]
     end
 
-    %% Backend
-    subgraph BE[Backend - FastAPI]
-        TicketAPI[Ticket API Routes]
-        TicketService[Ticket Service Layer]
-        AIService[AI Processing Service]
-        AgentWorkflow[Multi-Agent Triage Workflow]
-        AutomationService[Automation Service]
+    subgraph Backend["Backend - FastAPI"]
+        TicketAPI["Ticket API Routes"]
+        TicketService["Ticket Service Layer"]
+        AIService["AI Processing Service"]
+        AgentWorkflow["Multi-Agent Triage Workflow"]
+        AutomationService["Automation Service"]
     end
 
-    %% AI
-    subgraph AI[LLM Integration]
-        LLM[LLM API<br/>Classification, Priority,<br/>Summary, Response Draft]
+    subgraph AI["LLM Integration"]
+        LLM["LLM API"]
     end
 
-    %% Database
-    subgraph DB[PostgreSQL Database]
-        Tickets[(Tickets)]
-        Messages[(Ticket Messages)]
-        AgentRuns[(Agent Runs)]
-        Responses[(Generated Responses)]
-        AutomationEvents[(Automation Events)]
-        Attachments[(Attachment Metadata)]
+    subgraph Database["PostgreSQL Database"]
+        Tickets[("Tickets")]
+        Messages[("Ticket Messages")]
+        AgentRuns[("Agent Runs")]
+        Responses[("Generated Responses")]
+        AutomationEvents[("Automation Events")]
+        Attachments[("Attachment Metadata")]
     end
 
-    %% Local infrastructure
-    subgraph INFRA[Local Infrastructure]
-        Docker[Docker Compose]
-        PostgresContainer[PostgreSQL Container]
-        N8NContainer[n8n Container]
-    end
-
-    %% Main user flows
     User --> SubmitForm
     SubmitForm --> TicketAPI
 
     User --> Email
     Email --> EmailTrigger
-    EmailTrigger --> EmailToTicket
-    EmailToTicket --> TicketAPI
+    EmailTrigger --> EmailWorkflow
+    EmailWorkflow --> TicketAPI
 
     Admin --> Dashboard
     Admin --> TicketDetail
     Dashboard --> TicketAPI
     TicketDetail --> TicketAPI
 
-    %% Backend flow
     TicketAPI --> TicketService
     TicketService --> Tickets
     TicketService --> Messages
@@ -175,32 +160,23 @@ flowchart LR
     TicketService --> AIService
     AIService --> AgentWorkflow
     AgentWorkflow --> LLM
+
     AgentWorkflow --> AgentRuns
     AIService --> Responses
 
     TicketService --> AutomationService
     AIService --> AutomationService
-    AutomationService --> WebhookEvents
-    WebhookEvents --> AutomationEvents
+    AutomationService --> Webhooks
+    Webhooks --> AutomationEvents
 
-    %% Database relations
-    TicketAPI --> Tickets
-    TicketAPI --> Messages
-    TicketAPI --> AgentRuns
-    TicketAPI --> Responses
-    TicketAPI --> AutomationEvents
     TicketAPI --> Attachments
+```
 
-    %% Infra relations
-    Docker --> PostgresContainer
-    Docker --> N8NContainer
-    PostgresContainer --> DB
-    N8NContainer --> AUTO
-Request Flow
+```mermaid
 sequenceDiagram
     participant User as User / Requester
     participant Frontend as React Frontend
-    participant Email as Zoho Email Inbox
+    participant Email as Support Email Inbox
     participant N8N as n8n Workflow
     participant API as FastAPI Backend
     participant AI as AI Agent Workflow
@@ -209,28 +185,27 @@ sequenceDiagram
 
     alt Web form intake
         User->>Frontend: Submit support request
-        Frontend->>API: POST /api/v1/tickets
+        Frontend->>API: Create ticket
     else Email intake
         User->>Email: Send support email
         Email->>N8N: IMAP trigger receives email
-        N8N->>API: POST /api/v1/tickets/email-intake
+        N8N->>API: Create ticket from email
     end
 
     API->>DB: Store ticket and requester message
-    API->>AI: Run automatic AI triage
-    AI->>DB: Store agent runs and generated response draft
+    API->>AI: Run AI triage workflow
+    AI->>DB: Store agent runs and response draft
     API->>N8N: Trigger automation event
     N8N->>API: Optional automation callback
-    API->>DB: Store automation event history
+    API->>DB: Store automation event
 
     Admin->>Frontend: Open dashboard
-    Frontend->>API: Fetch tickets and ticket details
-    API->>DB: Read ticket, AI results, and automation events
-    DB-->>API: Return persisted data
+    Frontend->>API: Fetch tickets and details
+    API->>DB: Read ticket data and AI results
+    DB-->>API: Return stored data
     API-->>Frontend: Return ticket detail
-    Frontend-->>Admin: Show triage result, response draft, and workflow history
+    Frontend-->>Admin: Show triage result and workflow history
 ```
-
 The backend is structured around API routes, schemas, models, and service layers. Ticket creation and AI processing are separated into dedicated backend services to keep the codebase easier to extend and test.
 
 ---
