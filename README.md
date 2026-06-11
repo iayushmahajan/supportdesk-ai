@@ -101,6 +101,7 @@ Current status: **Ongoing, around 70–80% complete**
 
 SupportDesk AI uses a modular full-stack architecture. The React frontend handles ticket submission and admin review, while the FastAPI backend manages ticket persistence, AI processing, automation events, and integrations. PostgreSQL stores ticket data, agent workflow runs, generated responses, and automation history. n8n is used as the workflow automation layer for email-based intake and automation callbacks.
 
+```mermaid
 flowchart LR
     %% External users and intake channels
     User[User / Requester]
@@ -228,7 +229,7 @@ sequenceDiagram
     DB-->>API: Return persisted data
     API-->>Frontend: Return ticket detail
     Frontend-->>Admin: Show triage result, response draft, and workflow history
-
+```
 
 The backend is structured around API routes, schemas, models, and service layers. Ticket creation and AI processing are separated into dedicated backend services to keep the codebase easier to extend and test.
 
