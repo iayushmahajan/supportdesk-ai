@@ -200,7 +200,7 @@ Example README layout:
 Clone the repository:
 
 ```bash
-git clone <GITHUB_LINK_HERE>
+git clone https://github.com/iayushmahajan/supportdesk-ai.git
 cd supportdesk-ai
 ```
 
@@ -454,25 +454,13 @@ Potential future improvements:
 GitHub:
 
 ```text
-<GITHUB_LINK_HERE>
+https://github.com/iayushmahajan/supportdesk-ai.git
 ```
 
 Demo:
 
 ```text
 Not deployed yet. Deployment is planned for the final project phase.
-```
-
----
-
-## License
-
-License to be added.
-
-Suggested placeholder:
-
-```text
-MIT License or custom educational portfolio license.
 ```
 
 ```
